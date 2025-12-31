@@ -86,7 +86,6 @@ app.post("/sendemail", async (req, res) => {
       // avoid Gmail rate limit
       await new Promise((r) => setTimeout(r, 2000));
     }
-    res.
     res.send(true);
   } catch (err) {
     console.error("❌ MAIL ERROR:", err);
