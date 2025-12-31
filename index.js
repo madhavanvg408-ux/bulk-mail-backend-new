@@ -9,15 +9,19 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------- DB CONNECTION ----------------
+require("dotenv").config();
+
 mongoose
-  .connect({MONGO_URI})
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ Connected to MongoDB");
-    initMailer(); // ⬅️ start mailer AFTER DB connect
+    initMailer(); // start mailer AFTER DB connect
   })
-  .catch(() => {
+  .catch((err) => {
     console.log("❌ Failed to connect MongoDB");
+    console.error(err);
   });
+
 
 // ---------------- MODEL ----------------
 const Credential = mongoose.model(
