@@ -1,7 +1,9 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
+const axios = require("axios");
 
 const app = express();
 
@@ -9,100 +11,61 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------- DB CONNECTION ----------------
-require("dotenv").config();
-
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
-    initMailer(); // start mailer AFTER DB connect
-  })
-  .catch((err) => {
-    console.log("❌ Failed to connect MongoDB");
-    console.error(err);
-  });
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("❌ MongoDB Error:", err));
 
-
-// ---------------- MODEL ----------------
-const Credential = mongoose.model(
-  "credential",
-  {},
-  "bulkmail"
-);
-
-// ---------------- GLOBAL TRANSPORTER ----------------
-let transporter;
-
-// ---------------- INIT MAILER ----------------
-async function initMailer() {
-  try {
-    const data = await Credential.find();
-
-    if (data.length === 0) {
-      console.log("❌ No email credentials found in DB");
-      return;
-    }
-
-    const creds = data[0].toJSON();
-
-    transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: creds.user,
-        pass: creds.pass, // Gmail App Password
-      },
-    });
-
-    console.log("✅ Mail transporter ready");
-  } catch (err) {
-    console.error("❌ Mailer init error:", err);
-  }
-}
-
-// ---------------- SEND EMAIL API ----------------
+// ---------------- SEND EMAIL API (BREVO) ----------------
 app.post("/sendemail", async (req, res) => {
   try {
     const { msg, emails } = req.body;
-
-    if (!transporter) {
-      console.log("❌ Transporter not ready");
-      return res.status(500).send(false);
-    }
 
     if (!msg || !emails || emails.length === 0) {
       return res.status(400).send(false);
     }
 
     for (let email of emails) {
-      await transporter.sendMail({
-        from: transporter.options.auth.user,
-        to: email,
-        subject: "Bulk Mail",
-        text: msg,
-      });
+      await axios.post(
+        "https://api.brevo.com/v3/smtp/email",
+        {
+          sender: {
+            name: "Madhavan",
+            email: "madhavanvg408@gmail.com", // MUST be verified in Brevo
+          },
+          to: [{ email }],
+          subject: "Bulk Mail",
+          htmlContent: `<p>${msg}</p>`,
+        },
+        {
+          headers: {
+            "api-key": process.env.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            accept: "application/json",
+          },
+        }
+      );
 
       console.log("✅ Mail sent to:", email);
 
-      // avoid Gmail rate limit
-      await new Promise((r) => setTimeout(r, 2000));
+      // prevent rate limiting
+      await new Promise((r) => setTimeout(r, 1000));
     }
+
     res.send(true);
   } catch (err) {
-    console.error("❌ MAIL ERROR:", err);
-    res.send(false);
+    console.error(
+      "❌ MAIL ERROR:",
+      err.response?.data || err.message
+    );
+    res.status(500).send(false);
   }
 });
 
-app.get("/check", async (req, res) => {
-  try {
-    res.send("Server is running fine");
-  } catch (err) {
-    console.error("❌ ERROR:", err);
-    res.status(500).send("Something went wrong");
-  }
+// ---------------- HEALTH CHECK ----------------
+app.get("/check", (req, res) => {
+  res.send("Server is running fine");
 });
-
-
 
 // ---------------- SERVER ----------------
 app.listen(5000, () => {
