@@ -2,19 +2,17 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
 const axios = require("axios");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+  })
+);
 
-// ---------------- DB CONNECTION ----------------
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("❌ MongoDB Error:", err));
+app.use(express.json());
 
 // ---------------- SEND EMAIL API (BREVO) ----------------
 app.post("/sendemail", async (req, res) => {
@@ -22,10 +20,10 @@ app.post("/sendemail", async (req, res) => {
     const { msg, emails } = req.body;
 
     if (!msg || !emails || emails.length === 0) {
-      return res.status(400).send(false);
+      return res.status(400).json(false);
     }
 
-    for (let email of emails) {
+    for (const email of emails) {
       await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         {
@@ -52,22 +50,20 @@ app.post("/sendemail", async (req, res) => {
       await new Promise((r) => setTimeout(r, 1000));
     }
 
-    res.send(true);
+    res.json(true);
   } catch (err) {
-    console.error(
-      "❌ MAIL ERROR:",
-      err.response?.data || err.message
-    );
-    res.status(500).send(false);
+    console.error("❌ MAIL ERROR:", err.response?.data || err.message);
+    res.status(500).json(false);
   }
 });
 
 // ---------------- HEALTH CHECK ----------------
 app.get("/check", (req, res) => {
-  res.send("Server is running fine");
+  res.send("Backend is running fine 🚀");
 });
 
 // ---------------- SERVER ----------------
-app.listen(5000, () => {
-  console.log("🚀 Backend running on port 5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
